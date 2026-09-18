@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ADC Vêtements — Remise</title>
-<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.12.1/dist/quagga.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}header{background:#111;color:#fff;padding:20px}header h1{margin:0;font-size:24px}main{max-width:600px;margin:auto;padding:20px}button{width:100%;border:0;border-radius:10px;padding:16px;font-size:18px;font-weight:bold;cursor:pointer}.primary{background:#111;color:#fff}.secondary{background:#fff;color:#111;margin-top:10px}#scanner{display:none;background:#111;padding:10px;border-radius:12px;margin-top:15px}video{width:100%;display:block;border-radius:8px}.search{display:flex;gap:8px;margin-top:16px}.search input{flex:1;min-width:0;padding:14px;font-size:17px;border:1px solid #ccc;border-radius:8px}.search button{width:auto;font-size:16px}.message,.card{margin-top:20px;padding:18px;border-radius:10px;background:#fff}.ok{background:#e6f4ea}.error{background:#f8d7da}.client{font-size:22px;font-weight:bold}.commande{color:#666;margin-top:4px}.produit{font-size:20px;font-weight:bold;margin-top:18px}.details{font-size:19px;font-weight:bold;margin-top:6px;text-transform:uppercase}@media(max-width:600px){main{padding:12px}.search{display:block}.search button{width:100%;margin-top:8px}}
 </style>
@@ -13,7 +13,7 @@ body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}header{
 <header><h1>ADC Vêtements — Remise</h1></header>
 <main>
 <button class="primary" onclick="demarrer()">📷 SCANNER UN CODE-BARRES</button>
-<div id="scanner"><div id="reader" style="position:relative;overflow:hidden;border-radius:8px"></div><button class="secondary" onclick="arreter()">Fermer la caméra</button></div>
+<div id="scanner"><div id="reader"></div><button class="secondary" onclick="arreter()">Fermer la caméra</button></div>
 <div class="search"><input id="code" placeholder="Scanner ou entrer le code" autocomplete="off"><button class="primary" onclick="chercher()">Rechercher</button></div>
 <div id="resultat"></div>
 </main>
@@ -24,45 +24,32 @@ let lecteur=null, actif=false;
 async function demarrer(){
  const zone=document.getElementById('resultat');
  document.getElementById('scanner').style.display='block';
- zone.innerHTML='<div class="message">Caméra active — place les barres horizontalement au centre.</div>';
- actif=true;
+ zone.innerHTML='<div class="message">Caméra active — vise le code QR.</div>';
  try{
-  await new Promise((resolve,reject)=>{
-   Quagga.init({
-    inputStream:{
-     type:'LiveStream',
-     target:document.querySelector('#reader'),
-     constraints:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},
-     area:{top:'25%',right:'5%',left:'5%',bottom:'25%'}
-    },
-    locator:{patchSize:'medium',halfSample:false},
-    numOfWorkers:navigator.hardwareConcurrency||4,
-    frequency:15,
-    decoder:{readers:['code_128_reader']},
-    locate:true
-   },err=>{if(err)reject(err);else{Quagga.start();resolve();}});
-  });
-  Quagga.offDetected(onDetecte);
-  Quagga.onDetected(onDetecte);
+  if(!lecteur) lecteur=new Html5Qrcode('reader');
+  actif=true;
+  await lecteur.start(
+   {facingMode:'environment'},
+   {fps:12,qrbox:{width:250,height:250},formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE]},
+   (code)=>{
+    if(!actif)return;
+    actif=false;
+    document.getElementById('code').value=code;
+    arreter().then(()=>chercher());
+   },
+   ()=>{}
+  );
  }catch(e){
-  arreter();
+  await arreter();
   erreur("Impossible d’ouvrir ou d’utiliser la caméra.");
  }
 }
-function onDetecte(data){
- if(!actif||!data||!data.codeResult||!data.codeResult.code)return;
- const code=data.codeResult.code;
- if(!/^ADC-/i.test(code))return;
+async function arreter(){
  actif=false;
- document.getElementById('code').value=code;
- arreter();
- chercher();
-}
-function arreter(){
- actif=false;
- try{Quagga.offDetected(onDetecte);Quagga.stop();}catch(e){}
+ if(lecteur){
+  try{if(lecteur.isScanning) await lecteur.stop();}catch(e){}
+ }
  document.getElementById('scanner').style.display='none';
- const reader=document.getElementById('reader'); if(reader)reader.innerHTML='';
 }
 document.getElementById('code').addEventListener('keydown',e=>{if(e.key==='Enter')chercher();});
 
