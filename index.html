@@ -26,8 +26,8 @@ async function demarrer(){
  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){erreur("Ce navigateur ne permet pas l’accès à la caméra.");return;}
  document.getElementById('scanner').style.display='block'; zone.innerHTML='';
  try{
-  lecteur=lecteur||new ZXing.BrowserMultiFormatReader(); actif=true;
-  await lecteur.decodeFromConstraints({video:{facingMode:{ideal:'environment'}}},'video',(result)=>{
+  const hints=new Map(); hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.CODE_128]); hints.set(ZXing.DecodeHintType.TRY_HARDER,true); lecteur=lecteur||new ZXing.BrowserMultiFormatReader(hints,500); actif=true;
+  await lecteur.decodeFromConstraints({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},focusMode:{ideal:'continuous'}}},'video',(result)=>{
    if(result&&actif){actif=false;document.getElementById('code').value=result.getText();arreter();chercher();}
   });
  }catch(e){arreter();erreur("Impossible d’ouvrir la caméra. Vérifie l’autorisation caméra.");}
