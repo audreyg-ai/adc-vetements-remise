@@ -12,7 +12,7 @@ body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}header{
 <body>
 <header><h1>ADC Vêtements — Remise</h1></header>
 <main>
-<button class="primary" onclick="demarrer()">📷 SCANNER UN CODE-BARRES</button>
+<button class="primary" onclick="demarrer()">📷 SCANNER UN CODE QR</button>
 <div id="scanner"><div id="reader"></div><button class="secondary" onclick="arreter()">Fermer la caméra</button></div>
 <div class="search"><input id="code" placeholder="Scanner ou entrer le code" autocomplete="off"><button class="primary" onclick="chercher()">Rechercher</button></div>
 <div id="resultat"></div>
@@ -67,7 +67,24 @@ function afficher(a){
  const z=document.getElementById('resultat');
  if(!a.trouve){erreur(a.message||'Code inconnu.');return;}
  const details=[a.variante,a.taille].filter(Boolean).join(' — ');
- z.innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><div class="message ok" style="margin-bottom:0">Article trouvé — test seulement. Aucune remise enregistrée.</div></div>';
+ if(a.remiseLe){
+  z.innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><div class="message error" style="margin-bottom:0"><strong>DÉJÀ REMIS</strong><br>'+esc(a.remiseLe)+'</div></div>';
+  return;
+ }
+ z.innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><button class="primary" style="margin-top:20px" onclick="confirmerRemise()">✓ CONFIRMER LA REMISE</button></div>';
+}
+async function confirmerRemise(){
+ const code=document.getElementById('code').value.trim();
+ if(!code)return;
+ document.getElementById('resultat').innerHTML='<div class="message">Enregistrement de la remise…</div>';
+ try{
+  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({source:'ADC_REMISE',action:'remettre',code})});
+  const r=await res.json();
+  if(r.dejaRemis){erreur(r.message||'Cet article a déjà été remis.');return;}
+  if(!r.success){erreur(r.message||'Impossible d’enregistrer la remise.');return;}
+  document.getElementById('resultat').innerHTML='<div class="message ok"><strong>✓ REMISE ENREGISTRÉE</strong><br>'+esc(r.message||'Article remis.')+'</div>';
+  document.getElementById('code').value='';
+ }catch(e){erreur("Impossible de joindre ADC MASTER VÊTEMENTS.");}
 }
 function erreur(m){document.getElementById('resultat').innerHTML='<div class="message error">'+esc(m)+'</div>';}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
