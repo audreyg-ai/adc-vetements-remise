@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ADC Vêtements — Test caméra</title>
+  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <style>
+    body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}
+    header{background:#111;color:#fff;padding:20px}
+    header h1{margin:0;font-size:24px}
+    main{max-width:600px;margin:auto;padding:20px}
+    button{width:100%;border:0;border-radius:10px;padding:16px;font-size:18px;font-weight:bold;cursor:pointer}
+    #start{background:#111;color:#fff}
+    #stop{background:#fff;color:#111;margin-top:10px}
+    #scanner{display:none;background:#111;padding:10px;border-radius:12px;margin-top:15px}
+    video{width:100%;display:block;border-radius:8px}
+    #result{margin-top:20px;padding:18px;border-radius:10px;background:#fff;font-weight:bold;word-break:break-word}
+    .ok{background:#e6f4ea!important}
+    .error{background:#f8d7da!important}
+  </style>
+</head>
+<body>
+<header><h1>ADC Vêtements — Test caméra</h1></header>
+<main>
+  <button id="start" onclick="demarrer()">📷 OUVRIR LA CAMÉRA</button>
+  <div id="scanner">
+    <video id="video"></video>
+    <button id="stop" onclick="arreter()">Fermer la caméra</button>
+  </div>
+  <div id="result">Test : ouvre la caméra et vise un code-barres ADC.</div>
+</main>
+<script>
+let lecteur = null;
+let actif = false;
+
+async function demarrer(){
+  const zone=document.getElementById('result');
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    zone.className='error';
+    zone.textContent="Ce navigateur ne permet pas l’accès à la caméra. Ouvre ce lien dans Chrome ou Safari.";
+    return;
+  }
+  document.getElementById('scanner').style.display='block';
+  zone.className='';
+  zone.textContent='Ouverture de la caméra…';
+  try{
+    lecteur = lecteur || new ZXing.BrowserMultiFormatReader();
+    actif=true;
+    await lecteur.decodeFromConstraints(
+      {video:{facingMode:{ideal:'environment'}}},
+      'video',
+      (result,error)=>{
+        if(result && actif){
+          actif=false;
+          const code=result.getText();
+          arreter();
+          zone.className='ok';
+          zone.textContent='CODE LU : '+code;
+        }
+      }
+    );
+  }catch(err){
+    arreter();
+    zone.className='error';
+    zone.textContent="Impossible d’ouvrir la caméra. Vérifie l’autorisation caméra du navigateur.";
+  }
+}
+
+function arreter(){
+  actif=false;
+  if(lecteur) lecteur.reset();
+  document.getElementById('scanner').style.display='none';
+}
+</script>
+</body>
+</html>
