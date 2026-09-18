@@ -19,36 +19,54 @@ body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}header{
 </main>
 <script>
 const API_URL='https://script.google.com/macros/s/AKfycbzjwIRc4JRoi-K2fCIO5UljIOjXOGMSWgGjNKzq9ldtnDrfrNKvzLOv_gVFNKQ84r_3/exec';
-let lecteur=null, actif=false;
+let lecteur=null, actif=false, ouverture=false;
 
 async function demarrer(){
+ if(ouverture||actif)return;
+ ouverture=true;
  const zone=document.getElementById('resultat');
- document.getElementById('scanner').style.display='block';
- zone.innerHTML='<div class="message">Caméra active — vise le code QR.</div>';
+ const scanner=document.getElementById('scanner');
+ scanner.style.display='block';
+ zone.innerHTML='<div class="message">Ouverture de la caméra…</div>';
  try{
-  if(!lecteur) lecteur=new Html5Qrcode('reader');
-  actif=true;
+  // Recrée complètement le lecteur à chaque scan. C'est plus fiable
+  // dans les navigateurs intégrés comme Messenger.
+  if(lecteur){
+   try{if(lecteur.isScanning) await lecteur.stop();}catch(e){}
+   try{lecteur.clear();}catch(e){}
+  }
+  document.getElementById('reader').innerHTML='';
+  lecteur=new Html5Qrcode('reader');
   await lecteur.start(
    {facingMode:'environment'},
    {fps:12,qrbox:{width:250,height:250},formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE]},
-   (code)=>{
+   async (code)=>{
     if(!actif)return;
     actif=false;
     document.getElementById('code').value=code;
-    arreter().then(()=>chercher());
+    await arreter();
+    chercher();
    },
    ()=>{}
   );
+  actif=true;
+  zone.innerHTML='<div class="message">Caméra active — vise le code QR.</div>';
  }catch(e){
   await arreter();
-  erreur("Impossible d’ouvrir ou d’utiliser la caméra.");
+  erreur("Impossible d’ouvrir la caméra. Ferme puis rouvre cette page et réessaie.");
+ }finally{
+  ouverture=false;
  }
 }
 async function arreter(){
  actif=false;
  if(lecteur){
   try{if(lecteur.isScanning) await lecteur.stop();}catch(e){}
+  try{lecteur.clear();}catch(e){}
+  lecteur=null;
  }
+ const reader=document.getElementById('reader');
+ if(reader)reader.innerHTML='';
  document.getElementById('scanner').style.display='none';
 }
 document.getElementById('code').addEventListener('keydown',e=>{if(e.key==='Enter')chercher();});
