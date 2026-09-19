@@ -96,21 +96,54 @@ function afficher(a){
 async function confirmerRemise(){
  const code=document.getElementById('code').value.trim();
  if(!code)return;
+
+ const z=document.getElementById('resultat');
  const debutTotal=performance.now();
- document.getElementById('resultat').innerHTML='<div class="message">Enregistrement de la remise…</div>';
+
+ // Réaction immédiate : l'employée n'attend plus Google pour voir que
+ // son clic a bien été pris en compte.
+ z.innerHTML='<div class="message ok"><strong>✓ REMISE EN COURS D’ENREGISTREMENT</strong><br>Tu peux laisser cet écran ouvert pendant la confirmation.</div>';
+
  try{
-  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({source:'ADC_REMISE',action:'remettre',code,ligneArticle:ligneArticleCourante})});
+  const res=await fetch(API_URL,{
+   method:'POST',
+   headers:{'Content-Type':'text/plain;charset=utf-8'},
+   body:JSON.stringify({
+    source:'ADC_REMISE',
+    action:'remettre',
+    code,
+    ligneArticle:ligneArticleCourante
+   })
+  });
+
   const r=await res.json();
   const dureeTotale=Math.round(performance.now()-debutTotal);
-  if(r.dejaRemis){erreur(r.message||'Cet article a déjà été remis.');return;}
-  if(!r.success){erreur(r.message||'Impossible d’enregistrer la remise.');return;}
-  const dureeServeur=Number.isFinite(Number(r.dureeServeurMs))?Math.round(Number(r.dureeServeurMs)):null;
+
+  if(r.dejaRemis){
+   erreur(r.message||'Cet article a déjà été remis.');
+   return;
+  }
+
+  if(!r.success){
+   erreur(r.message||'Impossible d’enregistrer la remise.');
+   return;
+  }
+
+  const dureeServeur=Number.isFinite(Number(r.dureeServeurMs))
+   ? Math.round(Number(r.dureeServeurMs))
+   : null;
+
   const diagnostic=dureeServeur===null
    ? '<br><small>Temps total : '+(dureeTotale/1000).toFixed(2)+' s</small>'
    : '<br><small>Serveur : '+(dureeServeur/1000).toFixed(2)+' s · Temps total : '+(dureeTotale/1000).toFixed(2)+' s</small>';
-  document.getElementById('resultat').innerHTML='<div class="message ok"><strong>✓ REMISE ENREGISTRÉE</strong><br>'+esc(r.message||'Article remis.')+diagnostic+'</div>';
+
+  z.innerHTML='<div class="message ok"><strong>✓ REMISE ENREGISTRÉE</strong><br>'+esc(r.message||'Article remis.')+diagnostic+'</div>';
   document.getElementById('code').value='';
- }catch(e){erreur("Impossible de joindre ADC MASTER VÊTEMENTS.");}
+  ligneArticleCourante=null;
+
+ }catch(e){
+  erreur("La remise n’a pas pu être confirmée. Vérifie la connexion et réessaie.");
+ }
 }
 function erreur(m){document.getElementById('resultat').innerHTML='<div class="message error">'+esc(m)+'</div>';}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
