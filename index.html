@@ -20,6 +20,7 @@ body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}header{
 <script>
 const API_URL='https://script.google.com/macros/s/AKfycbzjwIRc4JRoi-K2fCIO5UljIOjXOGMSWgGjNKzq9ldtnDrfrNKvzLOv_gVFNKQ84r_3/exec';
 let lecteur=null, actif=false, ouverture=false;
+let ligneArticleCourante=null;
 
 async function demarrer(){
  if(ouverture||actif)return;
@@ -83,6 +84,7 @@ async function chercher(){
 }
 function afficher(a){
  const z=document.getElementById('resultat');
+ ligneArticleCourante=a && a.ligneArticle ? Number(a.ligneArticle) : null;
  if(!a.trouve){erreur(a.message||'Code inconnu.');return;}
  const details=[a.variante,a.taille].filter(Boolean).join(' — ');
  if(a.remiseLe){
@@ -97,7 +99,7 @@ async function confirmerRemise(){
  const debutTotal=performance.now();
  document.getElementById('resultat').innerHTML='<div class="message">Enregistrement de la remise…</div>';
  try{
-  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({source:'ADC_REMISE',action:'remettre',code})});
+  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({source:'ADC_REMISE',action:'remettre',code,ligneArticle:ligneArticleCourante})});
   const r=await res.json();
   const dureeTotale=Math.round(performance.now()-debutTotal);
   if(r.dejaRemis){erreur(r.message||'Cet article a déjà été remis.');return;}
