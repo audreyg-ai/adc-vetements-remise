@@ -94,13 +94,19 @@ function afficher(a){
 async function confirmerRemise(){
  const code=document.getElementById('code').value.trim();
  if(!code)return;
+ const debutTotal=performance.now();
  document.getElementById('resultat').innerHTML='<div class="message">Enregistrement de la remise…</div>';
  try{
   const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({source:'ADC_REMISE',action:'remettre',code})});
   const r=await res.json();
+  const dureeTotale=Math.round(performance.now()-debutTotal);
   if(r.dejaRemis){erreur(r.message||'Cet article a déjà été remis.');return;}
   if(!r.success){erreur(r.message||'Impossible d’enregistrer la remise.');return;}
-  document.getElementById('resultat').innerHTML='<div class="message ok"><strong>✓ REMISE ENREGISTRÉE</strong><br>'+esc(r.message||'Article remis.')+'</div>';
+  const dureeServeur=Number.isFinite(Number(r.dureeServeurMs))?Math.round(Number(r.dureeServeurMs)):null;
+  const diagnostic=dureeServeur===null
+   ? '<br><small>Temps total : '+(dureeTotale/1000).toFixed(2)+' s</small>'
+   : '<br><small>Serveur : '+(dureeServeur/1000).toFixed(2)+' s · Temps total : '+(dureeTotale/1000).toFixed(2)+' s</small>';
+  document.getElementById('resultat').innerHTML='<div class="message ok"><strong>✓ REMISE ENREGISTRÉE</strong><br>'+esc(r.message||'Article remis.')+diagnostic+'</div>';
   document.getElementById('code').value='';
  }catch(e){erreur("Impossible de joindre ADC MASTER VÊTEMENTS.");}
 }
