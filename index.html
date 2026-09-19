@@ -6,275 +6,215 @@
 <title>ADC Vêtements — Remise</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
-body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}header{background:#111;color:#fff;padding:20px}header h1{margin:0;font-size:24px}main{max-width:600px;margin:auto;padding:20px}button{width:100%;border:0;border-radius:10px;padding:16px;font-size:18px;font-weight:bold;cursor:pointer}.primary{background:#111;color:#fff}.secondary{background:#fff;color:#111;margin-top:10px}#scanner{display:none;background:#111;padding:10px;border-radius:12px;margin-top:15px}video{width:100%;display:block;border-radius:8px}.search{display:flex;gap:8px;margin-top:16px}.search input{flex:1;min-width:0;padding:14px;font-size:17px;border:1px solid #ccc;border-radius:8px}.search button{width:auto;font-size:16px}.message,.card{margin-top:20px;padding:18px;border-radius:10px;background:#fff}.ok{background:#e6f4ea}.error{background:#f8d7da}.client{font-size:22px;font-weight:bold}.commande{color:#666;margin-top:4px}.produit{font-size:20px;font-weight:bold;margin-top:18px}.details{font-size:19px;font-weight:bold;margin-top:6px;text-transform:uppercase}.field{margin-top:16px}.field label{display:block;font-weight:bold;margin-bottom:6px}.field select{width:100%;padding:14px;font-size:17px;border:1px solid #ccc;border-radius:8px;background:#fff}.stock{margin-top:16px;padding:12px;border-radius:8px;background:#f1f1f1;font-weight:bold}.warning{background:#fff3cd}@media(max-width:600px){main{padding:12px}.search{display:block}.search button{width:100%;margin-top:8px}}
+body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}
+header{background:#111;color:#fff;padding:20px}header h1{margin:0;font-size:24px}
+main{max-width:600px;margin:auto;padding:20px}
+button{width:100%;border:0;border-radius:10px;padding:16px;font-size:18px;font-weight:bold;cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
+.primary{background:#111;color:#fff}.secondary{background:#fff;color:#111;margin-top:10px;border:1px solid #ddd}
+.warningBtn{background:#fff3cd;color:#664d03;margin-top:10px;border:1px solid #ffecb5}
+.danger{background:#f8d7da;color:#842029;margin-top:10px;border:1px solid #f5c2c7}
+#scanner{display:none;background:#111;padding:10px;border-radius:12px;margin-top:15px}
+video{width:100%;display:block;border-radius:8px}
+.search{display:flex;gap:8px;margin-top:16px}.search input{flex:1;min-width:0;padding:14px;font-size:17px;border:1px solid #ccc;border-radius:8px}.search button{width:auto;font-size:16px}
+.message,.card{margin-top:20px;padding:18px;border-radius:10px;background:#fff}.ok{background:#e6f4ea}.error{background:#f8d7da}
+.client{font-size:22px;font-weight:bold}.commande{color:#666;margin-top:4px}.produit{font-size:20px;font-weight:bold;margin-top:18px}.details{font-size:19px;font-weight:bold;margin-top:6px;text-transform:uppercase}
+.field{margin-top:16px}.field label{display:block;font-weight:bold;margin-bottom:6px}.field select{width:100%;padding:14px;font-size:17px;border:1px solid #ccc;border-radius:8px;background:#fff}
+.stock{margin-top:16px;padding:12px;border-radius:8px;background:#f1f1f1;font-weight:bold}.warning{background:#fff3cd}
+.modalFond{display:none;position:fixed;z-index:9999;inset:0;background:rgba(0,0,0,.55);padding:20px;align-items:center;justify-content:center}
+.modal{width:min(430px,100%);background:#fff;border-radius:14px;padding:22px;box-sizing:border-box}.modal h2{margin:0 0 10px;font-size:22px}.modal p{line-height:1.45}.modalActions{display:flex;gap:10px;margin-top:20px}.modalActions button{font-size:16px;padding:13px}
+@media(max-width:600px){main{padding:12px}.search{display:block}.search button{width:100%;margin-top:8px}.modalActions{display:block}.modalActions button{margin-top:8px}}
 </style>
 </head>
 <body>
 <header><h1>ADC Vêtements — Remise</h1></header>
 <main>
-<button class="primary" onclick="demarrer()">📷 SCANNER UN CODE QR</button>
+<button id="btnScanner" class="primary" onclick="nouveauScan()">📷 SCANNER UN ARTICLE</button>
 <div id="scanner"><div id="reader"></div><button class="secondary" onclick="arreter()">Fermer la caméra</button></div>
 <div class="search"><input id="code" placeholder="Scanner ou entrer le code" autocomplete="off"><button class="primary" onclick="chercher()">Rechercher</button></div>
 <div id="resultat"></div>
 </main>
+
+<div id="modalFond" class="modalFond">
+ <div class="modal">
+  <h2 id="modalTitre"></h2>
+  <p id="modalTexte"></p>
+  <div class="modalActions">
+   <button id="modalNon" class="secondary"></button>
+   <button id="modalOui" class="primary"></button>
+  </div>
+ </div>
+</div>
+
 <script>
 const API_URL='https://script.google.com/macros/s/AKfycbzjwIRc4JRoi-K2fCIO5UljIOjXOGMSWgGjNKzq9ldtnDrfrNKvzLOv_gVFNKQ84r_3/exec';
-let lecteur=null, actif=false, ouverture=false;
-let ligneArticleCourante=null;
-let enregistrementEnCours=false;
-let produitGeneriqueCourant=null;
+let lecteur=null,actif=false,ouverture=false,enregistrementEnCours=false;
+let ligneArticleCourante=null,produitGeneriqueCourant=null,operationCourante=null,descriptionOperationCourante='';
 
-async function demarrer(){
+async function nouveauScan(){
  if(enregistrementEnCours)return;
- if(ouverture||actif)return;
+ operationCourante=null;descriptionOperationCourante='';ligneArticleCourante=null;produitGeneriqueCourant=null;
+ document.getElementById('code').value='';
+ document.getElementById('resultat').innerHTML='';
+ await demarrer();
+}
+async function demarrer(){
+ if(enregistrementEnCours||ouverture||actif)return;
  ouverture=true;
- const zone=document.getElementById('resultat');
- const scanner=document.getElementById('scanner');
- scanner.style.display='block';
- zone.innerHTML='<div class="message">Ouverture de la caméra…</div>';
+ const zone=document.getElementById('resultat'),scanner=document.getElementById('scanner');
+ scanner.style.display='block';zone.innerHTML='<div class="message">Ouverture de la caméra…</div>';
  try{
-  // Recrée complètement le lecteur à chaque scan. C'est plus fiable
-  // dans les navigateurs intégrés comme Messenger.
-  if(lecteur){
-   try{if(lecteur.isScanning) await lecteur.stop();}catch(e){}
-   try{lecteur.clear();}catch(e){}
-  }
+  if(lecteur){try{if(lecteur.isScanning)await lecteur.stop();}catch(e){} try{lecteur.clear();}catch(e){}}
   document.getElementById('reader').innerHTML='';
   lecteur=new Html5Qrcode('reader');
-  await lecteur.start(
-   {facingMode:'environment'},
-   {fps:12,qrbox:{width:250,height:250},formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE]},
-   async (code)=>{
-    if(!actif)return;
-    actif=false;
-    document.getElementById('code').value=code;
-    await arreter();
-    chercher();
-   },
-   ()=>{}
-  );
-  actif=true;
-  zone.innerHTML='<div class="message">Caméra active — vise le code QR.</div>';
- }catch(e){
-  await arreter();
-  erreur("Impossible d’ouvrir la caméra. Ferme puis rouvre cette page et réessaie.");
- }finally{
-  ouverture=false;
- }
+  await lecteur.start({facingMode:'environment'},{fps:12,qrbox:{width:250,height:250},formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE]},async(code)=>{
+   if(!actif)return;actif=false;document.getElementById('code').value=code;
+   await arreter();chercher();
+  },()=>{});
+  actif=true;zone.innerHTML='<div class="message">Caméra active — vise le code QR.</div>';
+ }catch(e){await arreter();erreur("Impossible d’ouvrir la caméra. Ferme puis rouvre cette page et réessaie.");}
+ finally{ouverture=false;}
 }
 async function arreter(){
  actif=false;
- if(lecteur){
-  try{if(lecteur.isScanning) await lecteur.stop();}catch(e){}
-  try{lecteur.clear();}catch(e){}
-  lecteur=null;
- }
- const reader=document.getElementById('reader');
- if(reader)reader.innerHTML='';
+ if(lecteur){try{if(lecteur.isScanning)await lecteur.stop();}catch(e){} try{lecteur.clear();}catch(e){} lecteur=null;}
+ const reader=document.getElementById('reader');if(reader)reader.innerHTML='';
  document.getElementById('scanner').style.display='none';
 }
 document.getElementById('code').addEventListener('keydown',e=>{if(e.key==='Enter'&&!enregistrementEnCours)chercher();});
 
 async function chercher(){
  if(enregistrementEnCours)return;
+ await arreter();
+ operationCourante=null;descriptionOperationCourante='';
  const code=document.getElementById('code').value.trim();
- if(!code){erreur('Veuillez scanner ou entrer un code-barres.');return;}
+ if(!code){erreur('Veuillez scanner ou entrer un code.');return;}
  document.getElementById('resultat').innerHTML='<div class="message">Recherche…</div>';
  try{
-  const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({source:'ADC_REMISE',action:'chercher',code})});
-  const article=await res.json();
-  afficher(article);
+  const res=await appel({source:'ADC_REMISE',action:'chercher',code});
+  afficher(res);
  }catch(e){erreur("Impossible de joindre ADC MASTER VÊTEMENTS.");}
 }
 function afficher(a){
- const z=document.getElementById('resultat');
- ligneArticleCourante=a && a.ligneArticle ? Number(a.ligneArticle) : null;
- produitGeneriqueCourant=null;
- if(!a.trouve){erreur(a.message||'Code inconnu.');return;}
-
- // QR générique : vente/remise directe depuis l'inventaire.
- if(a.typeCode==='PRODUIT' && a.venteReception){
-  produitGeneriqueCourant=a;
-  afficherProduitGenerique();
-  return;
- }
-
+ ligneArticleCourante=a&&a.ligneArticle?Number(a.ligneArticle):null;produitGeneriqueCourant=null;
+ if(!a||!a.trouve){erreur((a&&a.message)||'Code inconnu.');return;}
+ if(a.typeCode==='PRODUIT'&&a.venteReception){produitGeneriqueCourant=a;afficherProduitGenerique();return;}
  const details=[a.variante,a.taille].filter(Boolean).join(' — ');
  if(a.remiseLe){
-  z.innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><div class="message error" style="margin-bottom:0"><strong>DÉJÀ REMIS</strong><br>'+esc(a.remiseLe)+'</div></div>';
+  document.getElementById('resultat').innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><div class="message error" style="margin-bottom:0"><strong>DÉJÀ REMIS</strong><br>'+esc(a.remiseLe)+'</div></div>';
   return;
  }
- z.innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><button class="primary" style="margin-top:20px" onclick="confirmerRemise()">✓ CONFIRMER LA REMISE</button></div>';
+ descriptionOperationCourante=[a.produit,a.variante,a.taille].filter(Boolean).join(' — ');
+ document.getElementById('resultat').innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><button class="primary" style="margin-top:20px" onclick="confirmerRemise()">✓ CONFIRMER LA REMISE</button></div>';
 }
 
 function afficherProduitGenerique(){
- const a=produitGeneriqueCourant;
- const z=document.getElementById('resultat');
+ const a=produitGeneriqueCourant,z=document.getElementById('resultat');
  if(!a||!Array.isArray(a.combinaisons)||!a.combinaisons.length){erreur('Aucune combinaison trouvée dans INVENTAIRE.');return;}
-
- const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')).filter(Boolean))];
- const tailles=[...new Set(a.combinaisons.map(x=>String(x.taille||'')).filter(Boolean))];
-
- z.innerHTML='<div class="card">'+
-  '<div class="commande">VENTE RÉCEPTION</div>'+
-  '<div class="produit">'+esc(a.produit)+'</div>'+
-  (variantes.length?'<div class="field"><label>Couleur</label><select id="varianteVente" onchange="mettreAJourChoixProduit()"><option value="">Choisir…</option>'+variantes.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></div>':'')+
-  (tailles.length?'<div class="field"><label>Grandeur</label><select id="tailleVente" onchange="mettreAJourChoixProduit()"><option value="">Choisir…</option>'+tailles.map(t=>'<option value="'+esc(t)+'">'+esc(t)+'</option>').join('')+'</select></div>':'')+
-  '<div id="stockVente" class="stock">Choisis la combinaison remise.</div>'+
-  '<button id="btnVente" class="primary" style="margin-top:20px" disabled>✓ CONFIRMER LA REMISE</button>'+
-  '</div>';
-
- const btn=document.getElementById('btnVente');
- btn.onclick=confirmerVenteReception;
-
- // Produits sans variante ou sans taille : essaie immédiatement de résoudre.
- mettreAJourChoixProduit();
+ const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')))];
+ z.innerHTML='<div class="card"><div class="commande">VENTE RÉCEPTION</div><div class="produit">'+esc(a.produit)+'</div>'+
+ '<div class="field"><label>Couleur</label><select id="varianteVente" onchange="changerCouleur()"><option value="">Choisir…</option>'+variantes.map((v,i)=>'<option value="'+i+'">'+esc(v||'Aucune')+'</option>').join('')+'</select></div>'+
+ '<div class="field"><label>Grandeur</label><select id="tailleVente" onchange="mettreAJourChoixProduit()" disabled><option value="">Choisir…</option></select></div>'+
+ '<div id="stockVente" class="stock">Choisis la couleur et la grandeur remises.</div>'+
+ '<button id="btnVente" class="primary" style="margin-top:20px" disabled onclick="confirmerVenteReception()">✓ CONFIRMER LA REMISE</button>'+
+ '<button id="btnVerifier" class="warningBtn" disabled onclick="signalerInventaire()">⚠ INVENTAIRE À VÉRIFIER</button></div>';
 }
-
+function changerCouleur(){
+ const a=produitGeneriqueCourant,sv=document.getElementById('varianteVente'),st=document.getElementById('tailleVente');
+ st.innerHTML='<option value="">Choisir…</option>';st.disabled=true;
+ if(!a||sv.value===''){mettreAJourChoixProduit();return;}
+ const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')))],v=variantes[Number(sv.value)];
+ const tailles=[...new Set(a.combinaisons.filter(x=>String(x.variante||'')===v).map(x=>String(x.taille||'')))];
+ tailles.forEach((t,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=t||'Aucune';st.appendChild(o);});
+ st.dataset.variante=v;st.dataset.tailles=JSON.stringify(tailles);st.disabled=false;
+ if(tailles.length===1){st.value='0';mettreAJourChoixProduit();}else mettreAJourChoixProduit();
+}
+function choixInventaire(){
+ const a=produitGeneriqueCourant,sv=document.getElementById('varianteVente'),st=document.getElementById('tailleVente');
+ if(!a||!sv||!st||sv.value===''||st.value==='')return null;
+ const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')))],v=variantes[Number(sv.value)];
+ const tailles=JSON.parse(st.dataset.tailles||'[]'),t=tailles[Number(st.value)];
+ return a.combinaisons.find(x=>String(x.variante||'')===v&&String(x.taille||'')===t)||null;
+}
 function mettreAJourChoixProduit(){
- const a=produitGeneriqueCourant;
- if(!a)return;
-
- const selVariante=document.getElementById('varianteVente');
- const selTaille=document.getElementById('tailleVente');
- const variante=selVariante?selVariante.value:'';
- const taille=selTaille?selTaille.value:'';
-
- const possibles=a.combinaisons.filter(x=>
-  (!selVariante || String(x.variante||'')===variante) &&
-  (!selTaille || String(x.taille||'')===taille)
- );
-
- const stock=document.getElementById('stockVente');
- const btn=document.getElementById('btnVente');
-
- if(possibles.length!==1){
-  stock.className='stock';
-  stock.textContent='Choisis la combinaison remise.';
-  btn.disabled=true;
-  return;
- }
-
- const choix=possibles[0];
+ const choix=choixInventaire(),stock=document.getElementById('stockVente'),btn=document.getElementById('btnVente'),ver=document.getElementById('btnVerifier');
+ if(!stock||!btn||!ver)return;
+ if(!choix){stock.className='stock';stock.textContent='Choisis la couleur et la grandeur remises.';btn.disabled=true;ver.disabled=true;return;}
  const q=choix.quantite===null?'NON COMPTÉ':choix.quantite;
  stock.className='stock'+(choix.inventaireAVerifier?' warning':'');
  stock.innerHTML='Inventaire théorique : <strong>'+esc(q)+'</strong>'+(choix.inventaireAVerifier?'<br>⚠ INVENTAIRE À VÉRIFIER':'');
- btn.disabled=false;
- btn.dataset.ligneInventaire=choix.ligneInventaire;
+ btn.disabled=false;ver.disabled=!!choix.inventaireAVerifier;
+ btn.dataset.ligneInventaire=choix.ligneInventaire;ver.dataset.ligneInventaire=choix.ligneInventaire;
+}
+async function signalerInventaire(){
+ if(enregistrementEnCours)return;
+ const choix=choixInventaire();if(!choix)return;
+ const ok=await modal('Inventaire à vérifier?','Signaler '+[produitGeneriqueCourant.produit,choix.variante,choix.taille].filter(Boolean).join(' — ')+' pour vérification?','Annuler','Oui, signaler');
+ if(!ok)return;
+ enregistrementEnCours=true;
+ try{
+  const r=await appel({source:'ADC_REMISE',action:'inventaire_verifier',code:document.getElementById('code').value.trim(),ligneInventaire:choix.ligneInventaire});
+  if(!r.success)throw new Error(r.message||r.error||'Erreur');
+  choix.inventaireAVerifier=true;mettreAJourChoixProduit();
+ }catch(e){erreur(e.message||'Impossible de signaler l’inventaire.');}
+ finally{enregistrementEnCours=false;}
 }
 async function confirmerVenteReception(){
  if(enregistrementEnCours)return;
-
- const btn=document.getElementById('btnVente');
- const ligneInventaire=Number(btn && btn.dataset.ligneInventaire);
- const code=document.getElementById('code').value.trim();
-
- if(!code || !Number.isInteger(ligneInventaire)){
-  erreur('Choisis la couleur et la grandeur remises.');
-  return;
- }
-
- enregistrementEnCours=true;
- const z=document.getElementById('resultat');
- z.innerHTML='<div class="message ok"><strong>✓ REMISE EN COURS D’ENREGISTREMENT</strong><br>Ne rescane pas avant la confirmation.</div>';
-
+ const choix=choixInventaire(),code=document.getElementById('code').value.trim();
+ if(!choix||!code){erreur('Choisis la couleur et la grandeur remises.');return;}
+ enregistrementEnCours=true;descriptionOperationCourante=[produitGeneriqueCourant.produit,choix.variante,choix.taille].filter(Boolean).join(' — ');
+ document.getElementById('resultat').innerHTML='<div class="message ok"><strong>✓ REMISE EN COURS D’ENREGISTREMENT</strong></div>';
  try{
-  const res=await fetch(API_URL,{
-   method:'POST',
-   headers:{'Content-Type':'text/plain;charset=utf-8'},
-   body:JSON.stringify({
-    source:'ADC_REMISE',
-    action:'vente_reception',
-    code,
-    ligneInventaire
-   })
-  });
-
-  const r=await res.json();
-
-  if(!r.success){
-   enregistrementEnCours=false;
-   erreur(r.message||r.error||'Impossible d’enregistrer la remise.');
-   return;
-  }
-
-  const avertissement=r.inventaireAVerifier
-   ? '<br><strong>⚠ INVENTAIRE À VÉRIFIER</strong>'
-   : '';
-
-  z.innerHTML='<div class="message ok"><strong>✓ REMISE ENREGISTRÉE</strong><br>'+
-   esc(r.produit||'')+
-   '<br>Inventaire : '+esc(r.inventaireAvant)+' → '+esc(r.inventaireApres)+
-   avertissement+
-   '</div>';
-
-  document.getElementById('code').value='';
-  produitGeneriqueCourant=null;
-  enregistrementEnCours=false;
-
- }catch(e){
-  enregistrementEnCours=false;
-  erreur("La remise n’a pas pu être confirmée. Vérifie la connexion et réessaie.");
- }
+  const r=await appel({source:'ADC_REMISE',action:'vente_reception',code,ligneInventaire:choix.ligneInventaire});
+  if(!r.success)throw new Error(r.message||r.error||'Impossible d’enregistrer la remise.');
+  operationCourante=r.operationId||null;
+  afficherSucces(r,'Inventaire : '+esc(r.inventaireAvant)+' → '+esc(r.inventaireApres));
+ }catch(e){erreur(e.message||"La remise n’a pas pu être confirmée.");}
+ finally{enregistrementEnCours=false;}
 }
-
 async function confirmerRemise(){
  if(enregistrementEnCours)return;
- enregistrementEnCours=true;
- const code=document.getElementById('code').value.trim();
- if(!code){enregistrementEnCours=false;return;}
-
- const z=document.getElementById('resultat');
- const debutTotal=performance.now();
-
- // Réaction immédiate : l'employée n'attend plus Google pour voir que
- // son clic a bien été pris en compte.
- z.innerHTML='<div class="message ok"><strong>✓ REMISE EN COURS D’ENREGISTREMENT</strong><br>Tu peux laisser cet écran ouvert pendant la confirmation.</div>';
-
+ const code=document.getElementById('code').value.trim();if(!code)return;
+ enregistrementEnCours=true;document.getElementById('resultat').innerHTML='<div class="message ok"><strong>✓ REMISE EN COURS D’ENREGISTREMENT</strong></div>';
  try{
-  const res=await fetch(API_URL,{
-   method:'POST',
-   headers:{'Content-Type':'text/plain;charset=utf-8'},
-   body:JSON.stringify({
-    source:'ADC_REMISE',
-    action:'remettre',
-    code,
-    ligneArticle:ligneArticleCourante
-   })
-  });
-
-  const r=await res.json();
-  const dureeTotale=Math.round(performance.now()-debutTotal);
-
-  if(r.dejaRemis){
-   enregistrementEnCours=false;
-   erreur(r.message||'Cet article a déjà été remis.');
-   return;
-  }
-
-  if(!r.success){
-   enregistrementEnCours=false;
-   erreur(r.message||'Impossible d’enregistrer la remise.');
-   return;
-  }
-
-  const dureeServeur=Number.isFinite(Number(r.dureeServeurMs))
-   ? Math.round(Number(r.dureeServeurMs))
-   : null;
-
-  const diagnostic=dureeServeur===null
-   ? '<br><small>Temps total : '+(dureeTotale/1000).toFixed(2)+' s</small>'
-   : '<br><small>Serveur : '+(dureeServeur/1000).toFixed(2)+' s · Temps total : '+(dureeTotale/1000).toFixed(2)+' s</small>';
-
-  z.innerHTML='<div class="message ok"><strong>✓ REMISE ENREGISTRÉE</strong><br>'+esc(r.message||'Article remis.')+diagnostic+'</div>';
-  document.getElementById('code').value='';
-  ligneArticleCourante=null;
-  enregistrementEnCours=false;
-
- }catch(e){
-  enregistrementEnCours=false;
-  erreur("La remise n’a pas pu être confirmée. Vérifie la connexion et réessaie.");
- }
+  const r=await appel({source:'ADC_REMISE',action:'remettre',code,ligneArticle:ligneArticleCourante});
+  if(r.dejaRemis)throw new Error(r.message||'Cet article a déjà été remis.');
+  if(!r.success)throw new Error(r.message||'Impossible d’enregistrer la remise.');
+  operationCourante=r.operationId||null;afficherSucces(r,esc(r.message||'Article remis.'));
+ }catch(e){erreur(e.message||"La remise n’a pas pu être confirmée.");}
+ finally{enregistrementEnCours=false;}
+}
+function afficherSucces(r,texte){
+ const undo=operationCourante?'<button class="danger" onclick="demanderAnnulation()">↩ ANNULER CETTE REMISE</button>':'';
+ document.getElementById('resultat').innerHTML='<div class="message ok"><strong>✓ REMISE ENREGISTRÉE</strong><br>'+texte+(r.inventaireAVerifier?'<br><strong>⚠ INVENTAIRE À VÉRIFIER</strong>':'')+'</div>'+undo;
+}
+async function demanderAnnulation(){
+ if(!operationCourante||enregistrementEnCours)return;
+ const ok=await modal('Annuler cette remise?','Cette action annulera la remise de '+descriptionOperationCourante+' et corrigera l’inventaire.','Garder la remise','Oui, annuler la remise');
+ if(!ok)return;
+ enregistrementEnCours=true;
+ try{
+  const r=await appel({source:'ADC_REMISE',action:'annuler_remise',operationId:operationCourante});
+  if(!r.success)throw new Error(r.message||r.error||'Impossible d’annuler la remise.');
+  operationCourante=null;
+  document.getElementById('resultat').innerHTML='<div class="message ok"><strong>✓ REMISE ANNULÉE</strong><br>'+esc(descriptionOperationCourante)+'</div>';
+ }catch(e){erreur(e.message||'Impossible d’annuler la remise.');}
+ finally{enregistrementEnCours=false;}
+}
+async function appel(payload){
+ const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+ return await res.json();
+}
+function modal(titre,texte,non,oui){
+ return new Promise(resolve=>{
+  const fond=document.getElementById('modalFond');
+  document.getElementById('modalTitre').textContent=titre;document.getElementById('modalTexte').textContent=texte;
+  const bNon=document.getElementById('modalNon'),bOui=document.getElementById('modalOui');
+  bNon.textContent=non;bOui.textContent=oui;fond.style.display='flex';
+  const finir=v=>{fond.style.display='none';bNon.onclick=null;bOui.onclick=null;resolve(v);};
+  bNon.onclick=()=>finir(false);bOui.onclick=()=>finir(true);
+ });
 }
 function erreur(m){document.getElementById('resultat').innerHTML='<div class="message error">'+esc(m)+'</div>';}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
