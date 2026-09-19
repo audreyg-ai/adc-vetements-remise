@@ -21,8 +21,10 @@ body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}header{
 const API_URL='https://script.google.com/macros/s/AKfycbzjwIRc4JRoi-K2fCIO5UljIOjXOGMSWgGjNKzq9ldtnDrfrNKvzLOv_gVFNKQ84r_3/exec';
 let lecteur=null, actif=false, ouverture=false;
 let ligneArticleCourante=null;
+let enregistrementEnCours=false;
 
 async function demarrer(){
+ if(enregistrementEnCours)return;
  if(ouverture||actif)return;
  ouverture=true;
  const zone=document.getElementById('resultat');
@@ -70,9 +72,10 @@ async function arreter(){
  if(reader)reader.innerHTML='';
  document.getElementById('scanner').style.display='none';
 }
-document.getElementById('code').addEventListener('keydown',e=>{if(e.key==='Enter')chercher();});
+document.getElementById('code').addEventListener('keydown',e=>{if(e.key==='Enter'&&!enregistrementEnCours)chercher();});
 
 async function chercher(){
+ if(enregistrementEnCours)return;
  const code=document.getElementById('code').value.trim();
  if(!code){erreur('Veuillez scanner ou entrer un code-barres.');return;}
  document.getElementById('resultat').innerHTML='<div class="message">Recherche…</div>';
@@ -94,8 +97,10 @@ function afficher(a){
  z.innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><button class="primary" style="margin-top:20px" onclick="confirmerRemise()">✓ CONFIRMER LA REMISE</button></div>';
 }
 async function confirmerRemise(){
+ if(enregistrementEnCours)return;
+ enregistrementEnCours=true;
  const code=document.getElementById('code').value.trim();
- if(!code)return;
+ if(!code){enregistrementEnCours=false;return;}
 
  const z=document.getElementById('resultat');
  const debutTotal=performance.now();
@@ -120,11 +125,13 @@ async function confirmerRemise(){
   const dureeTotale=Math.round(performance.now()-debutTotal);
 
   if(r.dejaRemis){
+   enregistrementEnCours=false;
    erreur(r.message||'Cet article a déjà été remis.');
    return;
   }
 
   if(!r.success){
+   enregistrementEnCours=false;
    erreur(r.message||'Impossible d’enregistrer la remise.');
    return;
   }
@@ -140,8 +147,10 @@ async function confirmerRemise(){
   z.innerHTML='<div class="message ok"><strong>✓ REMISE ENREGISTRÉE</strong><br>'+esc(r.message||'Article remis.')+diagnostic+'</div>';
   document.getElementById('code').value='';
   ligneArticleCourante=null;
+  enregistrementEnCours=false;
 
  }catch(e){
+  enregistrementEnCours=false;
   erreur("La remise n’a pas pu être confirmée. Vérifie la connexion et réessaie.");
  }
 }
