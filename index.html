@@ -142,7 +142,8 @@ function mettreAJourChoixProduit(){
  if(!choix){stock.className='stock';stock.textContent='Choisis la couleur et la grandeur remises.';btn.disabled=true;ver.disabled=true;return;}
  const q=choix.quantite===null?'NON COMPTÉ':choix.quantite;
  stock.className='stock'+(choix.inventaireAVerifier?' warning':'');
- stock.innerHTML='Inventaire théorique : <strong>'+esc(q)+'</strong>'+(choix.inventaireAVerifier?'<br>⚠ INVENTAIRE À VÉRIFIER':'');
+ const prix=(choix.prix!==null&&choix.prix!==undefined&&choix.prix!=='')?Number(choix.prix):null;
+ stock.innerHTML=(prix!==null&&!Number.isNaN(prix)?'<div style="font-size:22px;margin-bottom:10px">Prix à entrer dans Moneris : <strong>'+esc(prix.toFixed(2).replace('.',','))+' $</strong></div>':'')+'Inventaire théorique : <strong>'+esc(q)+'</strong>'+(choix.inventaireAVerifier?'<br>⚠ INVENTAIRE À VÉRIFIER':'');
  btn.disabled=false;ver.disabled=!!choix.inventaireAVerifier;
  btn.dataset.ligneInventaire=choix.ligneInventaire;ver.dataset.ligneInventaire=choix.ligneInventaire;
 }
