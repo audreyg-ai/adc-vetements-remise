@@ -125,7 +125,7 @@ function afficherProduitGenerique(){
   '</div>';
 
  const btn=document.getElementById('btnVente');
- btn.onclick=()=>{ erreur("Le choix fonctionne. L'enregistrement dans INVENTAIRE sera branché à l'étape suivante."); };
+ btn.onclick=confirmerVenteReception;
 
  // Produits sans variante ou sans taille : essaie immédiatement de résoudre.
  mettreAJourChoixProduit();
@@ -162,6 +162,62 @@ function mettreAJourChoixProduit(){
  btn.disabled=false;
  btn.dataset.ligneInventaire=choix.ligneInventaire;
 }
+async function confirmerVenteReception(){
+ if(enregistrementEnCours)return;
+
+ const btn=document.getElementById('btnVente');
+ const ligneInventaire=Number(btn && btn.dataset.ligneInventaire);
+ const code=document.getElementById('code').value.trim();
+
+ if(!code || !Number.isInteger(ligneInventaire)){
+  erreur('Choisis la couleur et la grandeur remises.');
+  return;
+ }
+
+ enregistrementEnCours=true;
+ const z=document.getElementById('resultat');
+ z.innerHTML='<div class="message ok"><strong>✓ REMISE EN COURS D’ENREGISTREMENT</strong><br>Ne rescane pas avant la confirmation.</div>';
+
+ try{
+  const res=await fetch(API_URL,{
+   method:'POST',
+   headers:{'Content-Type':'text/plain;charset=utf-8'},
+   body:JSON.stringify({
+    source:'ADC_REMISE',
+    action:'vente_reception',
+    code,
+    ligneInventaire
+   })
+  });
+
+  const r=await res.json();
+
+  if(!r.success){
+   enregistrementEnCours=false;
+   erreur(r.message||r.error||'Impossible d’enregistrer la remise.');
+   return;
+  }
+
+  const avertissement=r.inventaireAVerifier
+   ? '<br><strong>⚠ INVENTAIRE À VÉRIFIER</strong>'
+   : '';
+
+  z.innerHTML='<div class="message ok"><strong>✓ REMISE ENREGISTRÉE</strong><br>'+
+   esc(r.produit||'')+
+   '<br>Inventaire : '+esc(r.inventaireAvant)+' → '+esc(r.inventaireApres)+
+   avertissement+
+   '</div>';
+
+  document.getElementById('code').value='';
+  produitGeneriqueCourant=null;
+  enregistrementEnCours=false;
+
+ }catch(e){
+  enregistrementEnCours=false;
+  erreur("La remise n’a pas pu être confirmée. Vérifie la connexion et réessaie.");
+ }
+}
+
 async function confirmerRemise(){
  if(enregistrementEnCours)return;
  enregistrementEnCours=true;
