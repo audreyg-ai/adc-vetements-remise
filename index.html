@@ -6,7 +6,7 @@
 <title>ADC Vêtements — Remise</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
-body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}header{background:#111;color:#fff;padding:20px}header h1{margin:0;font-size:24px}main{max-width:600px;margin:auto;padding:20px}button{width:100%;border:0;border-radius:10px;padding:16px;font-size:18px;font-weight:bold;cursor:pointer}.primary{background:#111;color:#fff}.secondary{background:#fff;color:#111;margin-top:10px}#scanner{display:none;background:#111;padding:10px;border-radius:12px;margin-top:15px}video{width:100%;display:block;border-radius:8px}.search{display:flex;gap:8px;margin-top:16px}.search input{flex:1;min-width:0;padding:14px;font-size:17px;border:1px solid #ccc;border-radius:8px}.search button{width:auto;font-size:16px}.message,.card{margin-top:20px;padding:18px;border-radius:10px;background:#fff}.ok{background:#e6f4ea}.error{background:#f8d7da}.client{font-size:22px;font-weight:bold}.commande{color:#666;margin-top:4px}.produit{font-size:20px;font-weight:bold;margin-top:18px}.details{font-size:19px;font-weight:bold;margin-top:6px;text-transform:uppercase}@media(max-width:600px){main{padding:12px}.search{display:block}.search button{width:100%;margin-top:8px}}
+body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#222}header{background:#111;color:#fff;padding:20px}header h1{margin:0;font-size:24px}main{max-width:600px;margin:auto;padding:20px}button{width:100%;border:0;border-radius:10px;padding:16px;font-size:18px;font-weight:bold;cursor:pointer}.primary{background:#111;color:#fff}.secondary{background:#fff;color:#111;margin-top:10px}#scanner{display:none;background:#111;padding:10px;border-radius:12px;margin-top:15px}video{width:100%;display:block;border-radius:8px}.search{display:flex;gap:8px;margin-top:16px}.search input{flex:1;min-width:0;padding:14px;font-size:17px;border:1px solid #ccc;border-radius:8px}.search button{width:auto;font-size:16px}.message,.card{margin-top:20px;padding:18px;border-radius:10px;background:#fff}.ok{background:#e6f4ea}.error{background:#f8d7da}.client{font-size:22px;font-weight:bold}.commande{color:#666;margin-top:4px}.produit{font-size:20px;font-weight:bold;margin-top:18px}.details{font-size:19px;font-weight:bold;margin-top:6px;text-transform:uppercase}.field{margin-top:16px}.field label{display:block;font-weight:bold;margin-bottom:6px}.field select{width:100%;padding:14px;font-size:17px;border:1px solid #ccc;border-radius:8px;background:#fff}.stock{margin-top:16px;padding:12px;border-radius:8px;background:#f1f1f1;font-weight:bold}.warning{background:#fff3cd}@media(max-width:600px){main{padding:12px}.search{display:block}.search button{width:100%;margin-top:8px}}
 </style>
 </head>
 <body>
@@ -22,6 +22,7 @@ const API_URL='https://script.google.com/macros/s/AKfycbzjwIRc4JRoi-K2fCIO5UljIO
 let lecteur=null, actif=false, ouverture=false;
 let ligneArticleCourante=null;
 let enregistrementEnCours=false;
+let produitGeneriqueCourant=null;
 
 async function demarrer(){
  if(enregistrementEnCours)return;
@@ -88,13 +89,78 @@ async function chercher(){
 function afficher(a){
  const z=document.getElementById('resultat');
  ligneArticleCourante=a && a.ligneArticle ? Number(a.ligneArticle) : null;
+ produitGeneriqueCourant=null;
  if(!a.trouve){erreur(a.message||'Code inconnu.');return;}
+
+ // QR générique : vente/remise directe depuis l'inventaire.
+ if(a.typeCode==='PRODUIT' && a.venteReception){
+  produitGeneriqueCourant=a;
+  afficherProduitGenerique();
+  return;
+ }
+
  const details=[a.variante,a.taille].filter(Boolean).join(' — ');
  if(a.remiseLe){
   z.innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><div class="message error" style="margin-bottom:0"><strong>DÉJÀ REMIS</strong><br>'+esc(a.remiseLe)+'</div></div>';
   return;
  }
  z.innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><button class="primary" style="margin-top:20px" onclick="confirmerRemise()">✓ CONFIRMER LA REMISE</button></div>';
+}
+
+function afficherProduitGenerique(){
+ const a=produitGeneriqueCourant;
+ const z=document.getElementById('resultat');
+ if(!a||!Array.isArray(a.combinaisons)||!a.combinaisons.length){erreur('Aucune combinaison trouvée dans INVENTAIRE.');return;}
+
+ const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')).filter(Boolean))];
+ const tailles=[...new Set(a.combinaisons.map(x=>String(x.taille||'')).filter(Boolean))];
+
+ z.innerHTML='<div class="card">'+
+  '<div class="commande">VENTE RÉCEPTION</div>'+
+  '<div class="produit">'+esc(a.produit)+'</div>'+
+  (variantes.length?'<div class="field"><label>Variante</label><select id="varianteVente" onchange="mettreAJourChoixProduit()"><option value="">Choisir…</option>'+variantes.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></div>':'')+
+  (tailles.length?'<div class="field"><label>Grandeur</label><select id="tailleVente" onchange="mettreAJourChoixProduit()"><option value="">Choisir…</option>'+tailles.map(t=>'<option value="'+esc(t)+'">'+esc(t)+'</option>').join('')+'</select></div>':'')+
+  '<div id="stockVente" class="stock">Choisis la combinaison remise.</div>'+
+  '<button id="btnVente" class="primary" style="margin-top:20px" disabled>✓ CONFIRMER LA REMISE</button>'+
+  '</div>';
+
+ const btn=document.getElementById('btnVente');
+ btn.onclick=()=>{ erreur("Le choix fonctionne. L'enregistrement dans INVENTAIRE sera branché à l'étape suivante."); };
+
+ // Produits sans variante ou sans taille : essaie immédiatement de résoudre.
+ mettreAJourChoixProduit();
+}
+
+function mettreAJourChoixProduit(){
+ const a=produitGeneriqueCourant;
+ if(!a)return;
+
+ const selVariante=document.getElementById('varianteVente');
+ const selTaille=document.getElementById('tailleVente');
+ const variante=selVariante?selVariante.value:'';
+ const taille=selTaille?selTaille.value:'';
+
+ const possibles=a.combinaisons.filter(x=>
+  (!selVariante || String(x.variante||'')===variante) &&
+  (!selTaille || String(x.taille||'')===taille)
+ );
+
+ const stock=document.getElementById('stockVente');
+ const btn=document.getElementById('btnVente');
+
+ if(possibles.length!==1){
+  stock.className='stock';
+  stock.textContent='Choisis la combinaison remise.';
+  btn.disabled=true;
+  return;
+ }
+
+ const choix=possibles[0];
+ const q=choix.quantite===null?'NON COMPTÉ':choix.quantite;
+ stock.className='stock'+(choix.inventaireAVerifier?' warning':'');
+ stock.innerHTML='Inventaire théorique : <strong>'+esc(q)+'</strong>'+(choix.inventaireAVerifier?'<br>⚠ INVENTAIRE À VÉRIFIER':'');
+ btn.disabled=false;
+ btn.dataset.ligneInventaire=choix.ligneInventaire;
 }
 async function confirmerRemise(){
  if(enregistrementEnCours)return;
