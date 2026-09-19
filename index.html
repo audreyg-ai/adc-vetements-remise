@@ -105,7 +105,7 @@ function afficher(a){
   return;
  }
  descriptionOperationCourante=[a.produit,a.variante,a.taille].filter(Boolean).join(' — ');
- document.getElementById('resultat').innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><button class="primary" style="margin-top:20px" onclick="confirmerRemise()">✓ CONFIRMER LA REMISE</button></div>';
+ document.getElementById('resultat').innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><button class="primary" style="margin-top:20px" onclick="confirmerRemise()">✓ CONFIRMER LA REMISE</button><button id="btnVerifierArticle" class="warningBtn" onclick="signalerInventaireArticle()">⚠ INVENTAIRE À VÉRIFIER</button></div>';
 }
 
 function afficherProduitGenerique(){
@@ -171,6 +171,19 @@ async function confirmerVenteReception(){
   operationCourante=r.operationId||null;
   afficherSucces(r,'Inventaire : '+esc(r.inventaireAvant)+' → '+esc(r.inventaireApres));
  }catch(e){erreur(e.message||"La remise n’a pas pu être confirmée.");}
+ finally{enregistrementEnCours=false;}
+}
+async function signalerInventaireArticle(){
+ if(enregistrementEnCours||!ligneArticleCourante)return;
+ const ok=await modal('Inventaire à vérifier?','Signaler '+descriptionOperationCourante+' pour vérification?','Annuler','Oui, signaler');
+ if(!ok)return;
+ enregistrementEnCours=true;
+ try{
+  const r=await appel({source:'ADC_REMISE',action:'inventaire_verifier_article',ligneArticle:ligneArticleCourante});
+  if(!r.success)throw new Error(r.message||r.error||'Impossible de signaler l’inventaire.');
+  const btn=document.getElementById('btnVerifierArticle');
+  if(btn){btn.textContent='⚠ INVENTAIRE À VÉRIFIER';btn.disabled=true;}
+ }catch(e){erreur(e.message||'Impossible de signaler l’inventaire.');}
  finally{enregistrementEnCours=false;}
 }
 async function confirmerRemise(){
