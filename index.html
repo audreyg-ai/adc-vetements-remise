@@ -118,7 +118,7 @@ function afficherProduitGenerique(){
  z.innerHTML='<div class="card">'+
   '<div class="commande">VENTE RÉCEPTION</div>'+
   '<div class="produit">'+esc(a.produit)+'</div>'+
-  (variantes.length?'<div class="field"><label>Variante</label><select id="varianteVente" onchange="mettreAJourChoixProduit()"><option value="">Choisir…</option>'+variantes.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></div>':'')+
+  (variantes.length?'<div class="field"><label>Couleur</label><select id="varianteVente" onchange="mettreAJourChoixProduit()"><option value="">Choisir…</option>'+variantes.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select></div>':'')+
   (tailles.length?'<div class="field"><label>Grandeur</label><select id="tailleVente" onchange="mettreAJourChoixProduit()"><option value="">Choisir…</option>'+tailles.map(t=>'<option value="'+esc(t)+'">'+esc(t)+'</option>').join('')+'</select></div>':'')+
   '<div id="stockVente" class="stock">Choisis la combinaison remise.</div>'+
   '<button id="btnVente" class="primary" style="margin-top:20px" disabled>✓ CONFIRMER LA REMISE</button>'+
