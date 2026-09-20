@@ -111,35 +111,69 @@ function afficher(a){
 function afficherProduitGenerique(){
  const a=produitGeneriqueCourant,z=document.getElementById('resultat');
  if(!a||!Array.isArray(a.combinaisons)||!a.combinaisons.length){erreur('Aucune combinaison trouvée dans INVENTAIRE.');return;}
- const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')))];
- z.innerHTML='<div class="card"><div class="commande">VENTE RÉCEPTION</div><div class="produit">'+esc(a.produit)+'</div>'+
- '<div class="field"><label>Couleur</label><select id="varianteVente" onchange="changerCouleur()"><option value="">Choisir…</option>'+variantes.map((v,i)=>'<option value="'+i+'">'+esc(v||'Aucune')+'</option>').join('')+'</select></div>'+
- '<div class="field"><label>Grandeur</label><select id="tailleVente" onchange="mettreAJourChoixProduit()" disabled><option value="">Choisir…</option></select></div>'+
- '<div id="stockVente" class="stock">Choisis la couleur et la grandeur remises.</div>'+
- '<button id="btnVente" class="primary" style="margin-top:20px" disabled onclick="confirmerVenteReception()">✓ CONFIRMER LA REMISE</button>'+
- '<button id="btnVerifier" class="warningBtn" disabled onclick="signalerInventaire()">⚠ INVENTAIRE À VÉRIFIER</button></div>';
+ const aCouleur=a.combinaisons.some(x=>String(x.variante||'').trim()!=='');
+ const aTaille=a.combinaisons.some(x=>String(x.taille||'').trim()!=='');
+ let html='<div class="card"><div class="commande">VENTE RÉCEPTION</div><div class="produit">'+esc(a.produit)+'</div>';
+ if(aCouleur){
+   const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')).filter(Boolean))];
+   html+='<div class="field"><label>Couleur</label><select id="varianteVente" onchange="changerCouleur()"><option value="">Choisir…</option>'+variantes.map((v,i)=>'<option value="'+i+'">'+esc(v)+'</option>').join('')+'</select></div>';
+ }
+ if(aTaille){
+   html+='<div class="field"><label>Grandeur</label><select id="tailleVente" onchange="mettreAJourChoixProduit()" '+(aCouleur?'disabled':'')+'><option value="">Choisir…</option></select></div>';
+ }
+ html+='<div id="stockVente" class="stock">Sélectionne les détails nécessaires.</div><button id="btnVente" class="primary" style="margin-top:20px" disabled onclick="confirmerVenteReception()">✓ CONFIRMER LA REMISE</button><button id="btnVerifier" class="warningBtn" disabled onclick="signalerInventaire()">⚠ INVENTAIRE À VÉRIFIER</button></div>';
+ z.innerHTML=html;
+ if(!aCouleur){
+   remplirTaillesSansCouleur();
+ }else if([...new Set(a.combinaisons.map(x=>String(x.variante||'')).filter(Boolean))].length===1){
+   document.getElementById('varianteVente').value='0';changerCouleur();
+ }
+ if(!aCouleur&&!aTaille)mettreAJourChoixProduit();
+}
+function remplirTaillesSansCouleur(){
+ const a=produitGeneriqueCourant,st=document.getElementById('tailleVente');
+ if(!a||!st)return;
+ const tailles=[...new Set(a.combinaisons.map(x=>String(x.taille||'')).filter(Boolean))];
+ st.innerHTML='<option value="">Choisir…</option>';
+ tailles.forEach((t,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=t;st.appendChild(o);});
+ st.dataset.tailles=JSON.stringify(tailles);st.disabled=false;
+ if(tailles.length===1){st.value='0';}
+ mettreAJourChoixProduit();
 }
 function changerCouleur(){
  const a=produitGeneriqueCourant,sv=document.getElementById('varianteVente'),st=document.getElementById('tailleVente');
+ if(!a||!sv)return;
+ if(!st){mettreAJourChoixProduit();return;}
  st.innerHTML='<option value="">Choisir…</option>';st.disabled=true;
- if(!a||sv.value===''){mettreAJourChoixProduit();return;}
- const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')))],v=variantes[Number(sv.value)];
- const tailles=[...new Set(a.combinaisons.filter(x=>String(x.variante||'')===v).map(x=>String(x.taille||'')))];
- tailles.forEach((t,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=t||'Aucune';st.appendChild(o);});
+ if(sv.value===''){mettreAJourChoixProduit();return;}
+ const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')).filter(Boolean))],v=variantes[Number(sv.value)];
+ const tailles=[...new Set(a.combinaisons.filter(x=>String(x.variante||'')===v).map(x=>String(x.taille||'')).filter(Boolean))];
+ tailles.forEach((t,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=t;st.appendChild(o);});
  st.dataset.variante=v;st.dataset.tailles=JSON.stringify(tailles);st.disabled=false;
- if(tailles.length===1){st.value='0';mettreAJourChoixProduit();}else mettreAJourChoixProduit();
+ if(tailles.length===1)st.value='0';
+ mettreAJourChoixProduit();
 }
 function choixInventaire(){
- const a=produitGeneriqueCourant,sv=document.getElementById('varianteVente'),st=document.getElementById('tailleVente');
- if(!a||!sv||!st||sv.value===''||st.value==='')return null;
- const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')))],v=variantes[Number(sv.value)];
- const tailles=JSON.parse(st.dataset.tailles||'[]'),t=tailles[Number(st.value)];
+ const a=produitGeneriqueCourant;
+ if(!a)return null;
+ const sv=document.getElementById('varianteVente'),st=document.getElementById('tailleVente');
+ let v='',t='';
+ if(sv){
+   if(sv.value==='')return null;
+   const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')).filter(Boolean))];
+   v=variantes[Number(sv.value)];
+ }
+ if(st){
+   if(st.value==='')return null;
+   const tailles=JSON.parse(st.dataset.tailles||'[]');
+   t=tailles[Number(st.value)];
+ }
  return a.combinaisons.find(x=>String(x.variante||'')===v&&String(x.taille||'')===t)||null;
 }
 function mettreAJourChoixProduit(){
  const choix=choixInventaire(),stock=document.getElementById('stockVente'),btn=document.getElementById('btnVente'),ver=document.getElementById('btnVerifier');
  if(!stock||!btn||!ver)return;
- if(!choix){stock.className='stock';stock.textContent='Choisis la couleur et la grandeur remises.';btn.disabled=true;ver.disabled=true;return;}
+ if(!choix){stock.className='stock';stock.textContent='Sélectionne les détails nécessaires.';btn.disabled=true;ver.disabled=true;return;}
  const q=choix.quantite===null?'NON COMPTÉ':choix.quantite;
  stock.className='stock'+(choix.inventaireAVerifier?' warning':'');
  const prix=(choix.prix!==null&&choix.prix!==undefined&&choix.prix!=='')?Number(choix.prix):null;
