@@ -108,36 +108,49 @@ function afficher(a){
  document.getElementById('resultat').innerHTML='<div class="card"><div class="client">'+esc(a.nomClient)+'</div><div class="commande">Commande #'+esc(a.noCommande)+'</div><div class="produit">'+esc(a.produit)+'</div><div class="details">'+esc(details)+'</div><button class="primary" style="margin-top:20px" onclick="confirmerRemise()">✓ CONFIRMER LA REMISE</button><button id="btnVerifierArticle" class="warningBtn" onclick="signalerInventaireArticle()">⚠ INVENTAIRE À VÉRIFIER</button></div>';
 }
 
+function valeurOptionReelle(v){
+ const s=String(v||'').trim();
+ if(!s)return '';
+ const n=s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ if(['sans valeur','aucune','aucun','n/a','na','-'].includes(n))return '';
+ return s;
+}
+function variantesReelles(a){
+ return [...new Set(a.combinaisons.map(x=>valeurOptionReelle(x.variante)).filter(Boolean))];
+}
 function afficherProduitGenerique(){
  const a=produitGeneriqueCourant,z=document.getElementById('resultat');
  if(!a||!Array.isArray(a.combinaisons)||!a.combinaisons.length){erreur('Aucune combinaison trouvée dans INVENTAIRE.');return;}
- const aCouleur=a.combinaisons.some(x=>String(x.variante||'').trim()!=='');
- const aTaille=a.combinaisons.some(x=>String(x.taille||'').trim()!=='');
+ const variantes=variantesReelles(a);
+ const afficherCouleur=variantes.length>1;
+ const aTaille=a.combinaisons.some(x=>valeurOptionReelle(x.taille)!=='');
  let html='<div class="card"><div class="commande">VENTE RÉCEPTION</div><div class="produit">'+esc(a.produit)+'</div>';
- if(aCouleur){
-   const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')).filter(Boolean))];
+ if(afficherCouleur){
    html+='<div class="field"><label>Couleur</label><select id="varianteVente" onchange="changerCouleur()"><option value="">Choisir…</option>'+variantes.map((v,i)=>'<option value="'+i+'">'+esc(v)+'</option>').join('')+'</select></div>';
  }
  if(aTaille){
-   html+='<div class="field"><label>Grandeur</label><select id="tailleVente" onchange="mettreAJourChoixProduit()" '+(aCouleur?'disabled':'')+'><option value="">Choisir…</option></select></div>';
+   html+='<div class="field"><label>Grandeur</label><select id="tailleVente" onchange="mettreAJourChoixProduit()" '+(afficherCouleur?'disabled':'')+'><option value="">Choisir…</option></select></div>';
  }
  html+='<div id="stockVente" class="stock">Sélectionne les détails nécessaires.</div><button id="btnVente" class="primary" style="margin-top:20px" disabled onclick="confirmerVenteReception()">✓ CONFIRMER LA REMISE</button><button id="btnVerifier" class="warningBtn" disabled onclick="signalerInventaire()">⚠ INVENTAIRE À VÉRIFIER</button></div>';
  z.innerHTML=html;
- if(!aCouleur){
-   remplirTaillesSansCouleur();
- }else if([...new Set(a.combinaisons.map(x=>String(x.variante||'')).filter(Boolean))].length===1){
-   document.getElementById('varianteVente').value='0';changerCouleur();
- }
- if(!aCouleur&&!aTaille)mettreAJourChoixProduit();
+ if(!afficherCouleur)remplirTaillesSansCouleur();
+ if(!afficherCouleur&&!aTaille)mettreAJourChoixProduit();
 }
 function remplirTaillesSansCouleur(){
  const a=produitGeneriqueCourant,st=document.getElementById('tailleVente');
- if(!a||!st)return;
- const tailles=[...new Set(a.combinaisons.map(x=>String(x.taille||'')).filter(Boolean))];
+ if(!a)return;
+ const variantes=variantesReelles(a);
+ const varianteUnique=variantes.length===1?variantes[0]:'';
+ const lignes=varianteUnique
+   ? a.combinaisons.filter(x=>valeurOptionReelle(x.variante)===varianteUnique)
+   : a.combinaisons;
+ if(!st){mettreAJourChoixProduit();return;}
+ const tailles=[...new Set(lignes.map(x=>valeurOptionReelle(x.taille)).filter(Boolean))];
  st.innerHTML='<option value="">Choisir…</option>';
  tailles.forEach((t,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=t;st.appendChild(o);});
+ st.dataset.variante=varianteUnique;
  st.dataset.tailles=JSON.stringify(tailles);st.disabled=false;
- if(tailles.length===1){st.value='0';}
+ if(tailles.length===1)st.value='0';
  mettreAJourChoixProduit();
 }
 function changerCouleur(){
@@ -146,8 +159,8 @@ function changerCouleur(){
  if(!st){mettreAJourChoixProduit();return;}
  st.innerHTML='<option value="">Choisir…</option>';st.disabled=true;
  if(sv.value===''){mettreAJourChoixProduit();return;}
- const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')).filter(Boolean))],v=variantes[Number(sv.value)];
- const tailles=[...new Set(a.combinaisons.filter(x=>String(x.variante||'')===v).map(x=>String(x.taille||'')).filter(Boolean))];
+ const variantes=variantesReelles(a),v=variantes[Number(sv.value)];
+ const tailles=[...new Set(a.combinaisons.filter(x=>valeurOptionReelle(x.variante)===v).map(x=>valeurOptionReelle(x.taille)).filter(Boolean))];
  tailles.forEach((t,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=t;st.appendChild(o);});
  st.dataset.variante=v;st.dataset.tailles=JSON.stringify(tailles);st.disabled=false;
  if(tailles.length===1)st.value='0';
@@ -160,15 +173,18 @@ function choixInventaire(){
  let v='',t='';
  if(sv){
    if(sv.value==='')return null;
-   const variantes=[...new Set(a.combinaisons.map(x=>String(x.variante||'')).filter(Boolean))];
-   v=variantes[Number(sv.value)];
+   const variantes=variantesReelles(a);
+   v=variantes[Number(sv.value)]||'';
+ }else{
+   const variantes=variantesReelles(a);
+   v=variantes.length===1?variantes[0]:'';
  }
  if(st){
    if(st.value==='')return null;
    const tailles=JSON.parse(st.dataset.tailles||'[]');
-   t=tailles[Number(st.value)];
+   t=tailles[Number(st.value)]||'';
  }
- return a.combinaisons.find(x=>String(x.variante||'')===v&&String(x.taille||'')===t)||null;
+ return a.combinaisons.find(x=>valeurOptionReelle(x.variante)===v&&valeurOptionReelle(x.taille)===t)||null;
 }
 function mettreAJourChoixProduit(){
  const choix=choixInventaire(),stock=document.getElementById('stockVente'),btn=document.getElementById('btnVente'),ver=document.getElementById('btnVerifier');
