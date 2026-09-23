@@ -118,6 +118,36 @@ function valeurOptionReelle(v){
 function variantesReelles(a){
  return [...new Set(a.combinaisons.map(x=>valeurOptionReelle(x.variante)).filter(Boolean))];
 }
+function cleTriGrandeur(v){
+ const s=valeurOptionReelle(v);
+ const n=s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+
+ const nombre=n.match(/^([0-9]+(?:[.,][0-9]+)?)/);
+ if(nombre)return [2,parseFloat(nombre[1].replace(',','.')),n];
+
+ const ordre={
+   'xxxs':0,'3xs':0,
+   'xxs':1,'2xs':1,
+   'xs':2,
+   's':3,'small':3,
+   'm':4,'medium':4,
+   'l':5,'large':5,
+   'xl':6,'x-large':6,'xlarge':6,
+   'xxl':7,'2xl':7,'xx-large':7,'xxlarge':7,
+   'xxxl':8,'3xl':8,'xxx-large':8,'xxxlarge':8
+ };
+ let taille=n.replace(/\b(enfant|junior|adulte|youth|adult)\b/g,'').trim();
+ taille=taille.replace(/\s+/g,'');
+ return [1,Object.prototype.hasOwnProperty.call(ordre,taille)?ordre[taille]:999,n];
+}
+function trierGrandeurs(tailles){
+ return [...tailles].sort((a,b)=>{
+   const ka=cleTriGrandeur(a),kb=cleTriGrandeur(b);
+   if(ka[0]!==kb[0])return ka[0]-kb[0];
+   if(ka[1]!==kb[1])return ka[1]-kb[1];
+   return String(ka[2]).localeCompare(String(kb[2]),'fr',{numeric:true});
+ });
+}
 function afficherProduitGenerique(){
  const a=produitGeneriqueCourant,z=document.getElementById('resultat');
  if(!a||!Array.isArray(a.combinaisons)||!a.combinaisons.length){erreur('Aucune combinaison trouvée dans INVENTAIRE.');return;}
@@ -145,7 +175,7 @@ function remplirTaillesSansCouleur(){
    ? a.combinaisons.filter(x=>valeurOptionReelle(x.variante)===varianteUnique)
    : a.combinaisons;
  if(!st){mettreAJourChoixProduit();return;}
- const tailles=[...new Set(lignes.map(x=>valeurOptionReelle(x.taille)).filter(Boolean))];
+ const tailles=trierGrandeurs([...new Set(lignes.map(x=>valeurOptionReelle(x.taille)).filter(Boolean))]);
  st.innerHTML='<option value="">Choisir…</option>';
  tailles.forEach((t,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=t;st.appendChild(o);});
  st.dataset.variante=varianteUnique;
@@ -160,7 +190,7 @@ function changerCouleur(){
  st.innerHTML='<option value="">Choisir…</option>';st.disabled=true;
  if(sv.value===''){mettreAJourChoixProduit();return;}
  const variantes=variantesReelles(a),v=variantes[Number(sv.value)];
- const tailles=[...new Set(a.combinaisons.filter(x=>valeurOptionReelle(x.variante)===v).map(x=>valeurOptionReelle(x.taille)).filter(Boolean))];
+ const tailles=trierGrandeurs([...new Set(a.combinaisons.filter(x=>valeurOptionReelle(x.variante)===v).map(x=>valeurOptionReelle(x.taille)).filter(Boolean))]);
  tailles.forEach((t,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=t;st.appendChild(o);});
  st.dataset.variante=v;st.dataset.tailles=JSON.stringify(tailles);st.disabled=false;
  if(tailles.length===1)st.value='0';
